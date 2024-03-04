@@ -64,6 +64,8 @@ class BeatTracker(nn.Module):
         self.fc = nn.Linear(16, 1)
 
     def forward(self, x):
+        x = self.melspec(x)
+        x = x.unsqueeze(1)
         x = self.pool(F.elu(self.dropout(self.conv1(x))))
         x = self.pool(F.elu(self.dropout(self.conv2(x))))
         x = F.elu(self.dropout(self.conv3(x)))
