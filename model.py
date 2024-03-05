@@ -5,19 +5,37 @@ import torch.nn.functional as F
 from torchaudio.transforms import MelSpectrogram
 
 
-class DilatedConv1d(nn.Module):
+class DilatedConv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, dilation):
-        super(DilatedConv1d, self).__init__()
-        self.conv = nn.Conv1d(
+        super(DilatedConv, self).__init__()
+        self.conv1 = nn.Conv1d(
             in_channels,
             out_channels,
             kernel_size,
-            dilation=dilation,
-            padding=(kernel_size - 1) * dilation,
+            dilation=2,
+            # padding=(kernel_size - 1) * dilation,
         )
+        self.elu1 = nn.ELU()
+        self.dropout1 = nn.Dropout(0.1)
+
+        self.conv2 = nn.Conv1d(
+            in_channels,
+            out_channels,
+            kernel_size,
+            dilation=2,
+            # padding=(kernel_size - 1) * dilation,
+        )
+        self.elu2 = nn.ELU()
+        self.dropout2 = nn.Dropout(0.1)
 
     def forward(self, x):
-        return self.conv(x)
+        y = self.conv1(x)
+        y = self.elu1(y)
+        y = self.dropout1(y)
+        y = self.conv2(y)
+        y = self.elu2(y)
+        y = self.dropout2(y)
+        return y
 
 
 class TCN(nn.Module):
@@ -27,50 +45,55 @@ class TCN(nn.Module):
         for i in range(num_levels):
             dilation_size = 2**i
             self.layers.append(
-                DilatedConv1d(
+                DilatedConv(
                     in_channels, out_channels, kernel_size, dilation=dilation_size
                 )
             )
-        self.dropout = nn.Dropout(0.1)
 
     def forward(self, x):
+        y = x
         for layer in self.layers:
-            x = F.elu(self.dropout(layer(x)))
-        return x
+            y = layer(y)
+        return y
 
 
 class BeatTracker(nn.Module):
     def __init__(self):
         super(BeatTracker, self).__init__()
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         self.melspec = MelSpectrogram(
-            sample_rate=22050,
+            sample_rate=44100,
             n_fft=2048,
             win_length=2048,
-            hop_length=int(np.floor(0.01 * 22050)),
+            hop_length=int(np.floor(0.01 * 44100)),
             center=True,
             pad_mode="reflect",
             power=2.0,
             norm="slaney",
-            onesided=True,
-            n_mels=96,
-            htk=False,
-        )
+            n_mels=81,
+        ).to(self.device)
         self.conv1 = nn.Conv2d(1, 16, (3, 3))
         self.conv2 = nn.Conv2d(16, 16, (3, 3))
         self.conv3 = nn.Conv2d(16, 16, (1, 8))
-        self.pool = nn.MaxPool2d((1, 3), (1, 3))
+        self.pool1 = nn.MaxPool2d((1, 3))
+        self.pool2 = nn.MaxPool2d((1, 3))
         self.dropout = nn.Dropout(0.1)
-        self.tcn = TCN(16, 16, 5, 20)
-        self.fc = nn.Linear(16, 1)
+        self.tcn = TCN(16, 16, 5, 11)
+        self.out = nn.Conv1d(16, 1, 5)
+
+        self.to(self.device)
 
     def forward(self, x):
-        x = self.melspec(x)
-        x = x.unsqueeze(1)
-        x = self.pool(F.elu(self.dropout(self.conv1(x))))
-        x = self.pool(F.elu(self.dropout(self.conv2(x))))
-        x = F.elu(self.dropout(self.conv3(x)))
-        x = x.squeeze(2).permute(0, 2, 1)
-        x = self.tcn(x)
-        x = x.permute(0, 2, 1)
-        x = torch.sigmoid(self.fc(x))
-        return x
+        y = self.melspec(x)
+        y = y.permute(0, 1, 3, 2)  # permute to (batch, channels, time, freq)
+        y = self.dropout(self.pool1(F.elu(self.conv1(y))))
+        y = self.dropout(self.pool2(F.elu(self.conv2(y))))
+        y = self.dropout(F.elu(self.conv3(y)))
+        # we've "summarized" the frequency dimension, so we can squeeze it out
+        # ending up with with (batch, channels, time)
+        y = y.squeeze(3)
+        y = self.tcn(y)
+        y = self.out(y)
+        y = torch.sigmoid(y)
+        return y
