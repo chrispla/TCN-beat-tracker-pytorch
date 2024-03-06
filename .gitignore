@@ -165,3 +165,9 @@ data/
 # macos
 .DS_Store
 
+# tests
+test.py
+test.ipynb
+
+# vscode stuff
+.vscode/

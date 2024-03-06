@@ -1,16 +1,19 @@
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from tqdm import tqdm
 
 from dataset import Ballroom
 from model import BeatTracker
 
 torch.manual_seed(0)
-
+model_type = "beats"
 model = BeatTracker()
 loss_function = nn.BCELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-scheduler = ReduceLROnPlateau(optimizer, "min", factor=0.2, patience=10, verbose=True)
+scheduler = ReduceLROnPlateau(optimizer, "min", factor=0.2, patience=10)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model.train()
@@ -24,33 +27,27 @@ n_epochs_stop = 50
 dataset = Ballroom(
     audio_dir="data/ballroom/audio", annotation_dir="data/ballroom/annotations"
 )
-train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(
-    dataset, [80, 10, 10]
-)
-batch_size = 8
-train_loader = torch.utils.data.DataLoader(
-    train_dataset, batch_size=batch_size, shuffle=True
-)
-val_loader = torch.utils.data.DataLoader(
-    val_dataset, batch_size=batch_size, shuffle=False
-)
-test_loader = torch.utils.data.DataLoader(
-    test_dataset, batch_size=batch_size, shuffle=False
-)
+train_loader, val_loader, test_loader = dataset.get_dataloaders(batch_size=8)
 
 # Train
 for epoch in range(200):
     model.train()
     running_loss = 0.0
-    for i, data in enumerate(train_loader, 0):
-        inputs, beat_vector, _ = data
-        inputs, beat_vector = inputs.to(device), beat_vector.to(device)
+    pbar = tqdm(enumerate(train_loader), total=len(train_loader), leave=False)
+    for i, data in pbar:
+        inputs, beat_vector, downbeat_vector = data
+        if model_type == "beats":
+            labels = beat_vector
+        elif model_type == "downbeats":
+            labels = downbeat_vector
+        inputs, labels = inputs.to(device), labels.to(device)
         optimizer.zero_grad()
         outputs = model(inputs)
-        loss = loss_function(outputs, beat_vector)
+        loss = loss_function(outputs, labels)
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
+        pbar.set_description(f"Epoch {epoch+1}, Loss: {running_loss/(i+1):.4f}")
 
     # Validation
     model.eval()
@@ -58,10 +55,24 @@ for epoch in range(200):
     with torch.no_grad():
         for i, data in enumerate(val_loader, 0):
             inputs, beat_vector, _ = data
-            inputs, beat_vector = inputs.to(device), beat_vector.to(device)
+
+            if model_type == "beats":
+                labels = beat_vector
+            elif model_type == "downbeats":
+                labels = downbeat_vector
+
+            # we need to clean up the 0.5 in the vector
+            # !!! need to handle this more nicely later
+            labels[labels == 0.5] = 0.0
+
+            inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
-            loss = loss_function(outputs, beat_vector)
+            loss = loss_function(outputs, labels)
             val_loss += loss.item()
+
+    print(
+        f"Epoch {epoch+1}, Training Loss: {running_loss/len(train_loader):.4f}, Validation Loss: {val_loss/len(val_loader):.4f}"
+    )
 
     scheduler.step(val_loss)
 
@@ -76,4 +87,9 @@ for epoch in range(200):
             break
 
 # save model
-torch.save(model.state_dict(), f"beat_tracker_{val_loss:.2f}.pt")
+if model_type == "beats":
+    torch.save(model.state_dict(), Path("models") / f"beat_tracker_{val_loss:.2f}.pt")
+elif model_type == "downbeats":
+    torch.save(
+        model.state_dict(), Path("models") / f"downbeat_tracker_{val_loss:.2f}.pt"
+    )

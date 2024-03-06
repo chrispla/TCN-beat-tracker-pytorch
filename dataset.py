@@ -65,9 +65,9 @@ class Ballroom(Dataset):
 
         # get beat vectors aligned with spectrogram frames
         # for training, they use 0.5 in a radius of 2 around frame, and 1 for the frame
-        self.n_spec_frames = int(self.min_duration * self.sr / self.hop)
-        self.beat_vectors_train = {}
-        self.downbeat_vectors_train = {}
+        self.n_spec_frames = int(self.min_duration * self.sr / self.hop) + 1
+        self.beat_vectors = {}
+        self.downbeat_vectors = {}
         for k, v in self.beat_spec_frames.items():
             beat_vector = np.zeros(self.n_spec_frames)
             for frame in v:
@@ -79,7 +79,7 @@ class Ballroom(Dataset):
                 values = np.where(indices == frame, 1.0, 0.5)
                 # set values in beat vector
                 beat_vector[indices] = values
-            self.beat_vectors_train[k] = beat_vector
+            self.beat_vectors[k] = beat_vector
         for k, v in self.downbeat_spec_frames.items():
             downbeat_vector = np.zeros(self.n_spec_frames)
             for frame in v:
@@ -88,18 +88,6 @@ class Ballroom(Dataset):
                 )
                 values = np.where(indices == frame, 1.0, 0.5)
                 downbeat_vector[indices] = values
-            self.downbeat_vectors_train[k] = downbeat_vector
-
-        # for test, they don't use the 0.5 values
-        self.beat_vectors = {}
-        self.downbeat_vectors = {}
-        for k, v in self.beat_vectors_train.items():
-            beat_vector = np.zeros(self.n_spec_frames)
-            beat_vector[v == 1] = 1.0
-            self.beat_vectors[k] = beat_vector
-        for k, v in self.downbeat_vectors_train.items():
-            downbeat_vector = np.zeros(self.n_spec_frames)
-            downbeat_vector[v == 1] = 1.0
             self.downbeat_vectors[k] = downbeat_vector
 
     def __len__(self):
@@ -117,8 +105,8 @@ class Ballroom(Dataset):
 
         # load annotations -- we're returning the train vector, so we
         # need to clean that up later for validation and test
-        beat_vector = torch.tensor(self.beat_vectors_train[basename])
-        downbeat_vector = torch.tensor(self.downbeat_vectors_train[basename])
+        beat_vector = torch.tensor(self.beat_vectors[basename]).float()
+        downbeat_vector = torch.tensor(self.downbeat_vectors[basename]).float()
 
         return audio, beat_vector, downbeat_vector
 

@@ -112,6 +112,6 @@ class BeatTracker(nn.Module):
         y = self.dropout(F.elu(self.conv3(y)))
         y = y.squeeze(3)  # squeeze "summarized" frequency dim, (batch, channels, time)
         y = self.tcn(y)
-        y = self.out(y)
+        y = self.out(y).squeeze(1)
         y = torch.sigmoid(y)
         return y
