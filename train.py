@@ -99,6 +99,7 @@ for epoch in range(200):
             break
 
 # save model
+Path("models").mkdir(exist_ok=True)  # create model dir if it doesn't exist
 if model_type == "beats":
     torch.save(model.state_dict(), Path("models") / f"beat_tracker_{val_loss:.2f}.pt")
 elif model_type == "downbeats":
