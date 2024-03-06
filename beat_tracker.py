@@ -10,7 +10,13 @@ from utils import output_to_beat_times
 def beatTracker(inputFile):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    audio, _ = torchaudio.load(inputFile, normalize=True)
+    # load audio
+    audio, og_sr = torchaudio.load(inputFile, normalize=True)
+    # to mono, if stereo
+    if audio.shape[0] > 1:
+        audio = audio.mean(dim=0, keepdim=True)
+    # resample to 44100
+    audio = torchaudio.transforms.Resample(og_sr, 44100)(audio)
     audio = audio.to(device)
 
     # compute beats
