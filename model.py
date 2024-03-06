@@ -106,7 +106,7 @@ class BeatTracker(nn.Module):
 
     def forward(self, x):
         # add batch if not present
-        if len(x.shape) != 4:
+        if len(x.shape) != 3:
             x = x.unsqueeze(0)
         y = self.melspec(x)
         y = y.permute(0, 1, 3, 2)  # permute to (batch, channels, time, freq)
