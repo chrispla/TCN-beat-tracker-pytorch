@@ -30,6 +30,7 @@ if not args.name:
         exit()
 else:
     model_dir = Path("models", args.name)
+print("Evaluating model:", model_dir)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -50,7 +51,10 @@ with torch.no_grad():
         inputs, beat_vector, downbeat_vector = data
         outputs = model(inputs.to(device))
         output_times = output_to_beat_times(
-            outputs.squeeze().cpu().numpy(), sr=44100, hop=0.01 * 44100, model_type=model_type
+            outputs.squeeze().cpu().numpy(),
+            sr=44100,
+            hop=0.01 * 44100,
+            model_type=model_type,
         )
         if model_type == "beats":
             target_times = vector_to_times(beat_vector, sr=44100, hop=0.01 * 44100)
@@ -70,4 +74,12 @@ with torch.no_grad():
 for key in metrics:
     metrics[key] = sum(metrics[key]) / len(metrics[key])
 
-print(metrics)
+print(
+    "Metrics\n",
+    f"F1  : {metrics['f1']:.3f}\n",
+    f"CMLc: {metrics['CMLc']:.3f}\n",
+    f"CMLt: {metrics['CMLt']:.3f}\n",
+    f"AMLc: {metrics['AMLc']:.3f}\n",
+    f"AMLt: {metrics['AMLt']:.3f}\n",
+    f"D   : {metrics['D']:.3f}\n",
+)
