@@ -12,8 +12,8 @@ class DilatedConv(nn.Module):
             in_channels,
             out_channels,
             kernel_size,
-            dilation=2,
-            # padding=(kernel_size - 1) * dilation,
+            dilation=dilation,
+            padding=(kernel_size - 1) * dilation // 2,
         )
         self.elu1 = nn.ELU()
         self.dropout1 = nn.Dropout(0.1)
@@ -22,8 +22,8 @@ class DilatedConv(nn.Module):
             in_channels,
             out_channels,
             kernel_size,
-            dilation=2,
-            # padding=(kernel_size - 1) * dilation,
+            dilation=dilation,
+            padding=(kernel_size - 1) * dilation // 2,
         )
         self.elu2 = nn.ELU()
         self.dropout2 = nn.Dropout(0.1)
@@ -73,14 +73,34 @@ class BeatTracker(nn.Module):
             norm="slaney",
             n_mels=81,
         ).to(self.device)
-        self.conv1 = nn.Conv2d(1, 16, (3, 3))
-        self.conv2 = nn.Conv2d(16, 16, (3, 3))
-        self.conv3 = nn.Conv2d(16, 16, (1, 8))
+        self.conv1 = nn.Conv2d(
+            in_channels=1,
+            out_channels=16,
+            kernel_size=(3, 3),
+            padding=((3 - 1) // 2, 0),
+        )
+        self.conv2 = nn.Conv2d(
+            in_channels=16,
+            out_channels=16,
+            kernel_size=(3, 3),
+            padding=((3 - 1) // 2, 0),
+        )
+        self.conv3 = nn.Conv2d(
+            in_channels=16,
+            out_channels=16,
+            kernel_size=(1, 8),
+            padding=((1 - 1) // 2, 0),
+        )
         self.pool1 = nn.MaxPool2d((1, 3))
         self.pool2 = nn.MaxPool2d((1, 3))
         self.dropout = nn.Dropout(0.1)
-        self.tcn = TCN(16, 16, 5, 11)
-        self.out = nn.Conv1d(16, 1, 5)
+        self.tcn = TCN(
+            in_channels=16,
+            out_channels=16,
+            kernel_size=5,
+            num_levels=11,
+        )
+        self.out = nn.Conv1d(16, 1, 1)
 
         self.to(self.device)
 
@@ -90,9 +110,7 @@ class BeatTracker(nn.Module):
         y = self.dropout(self.pool1(F.elu(self.conv1(y))))
         y = self.dropout(self.pool2(F.elu(self.conv2(y))))
         y = self.dropout(F.elu(self.conv3(y)))
-        # we've "summarized" the frequency dimension, so we can squeeze it out
-        # ending up with with (batch, channels, time)
-        y = y.squeeze(3)
+        y = y.squeeze(3)  # squeeze "summarized" frequency dim, (batch, channels, time)
         y = self.tcn(y)
         y = self.out(y)
         y = torch.sigmoid(y)
