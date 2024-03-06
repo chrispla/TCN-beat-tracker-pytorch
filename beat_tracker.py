@@ -41,8 +41,12 @@ def beatTracker(inputFile):
 
 
 if __name__ == "__main__":
-    beat_times, downbeat_times = beatTracker(
-        "data/ballroom/audio/ChaChaCha/Albums-Cafe_Paradiso-05.wav"
-    )
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Compute beats and downbeats")
+    parser.add_argument("-i", type=str, help="path to the input audio file")
+    args = parser.parse_args()
+
+    beat_times, downbeat_times = beatTracker(args.i)
     print("Beat times:", beat_times)
     print("Downbeat times:", downbeat_times)
