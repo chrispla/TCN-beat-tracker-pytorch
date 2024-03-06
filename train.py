@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 
 import torch
@@ -8,8 +9,19 @@ from tqdm import tqdm
 from dataset import Ballroom
 from model import BeatTracker
 
+parser = argparse.ArgumentParser(description="Train model")
+parser.add_argument(
+    "--model_type",
+    "-t",
+    type=str,
+    default="beats",
+    help="model type (beats or downbeats)",
+)
+args = parser.parse_args()
+
+
 torch.manual_seed(0)
-model_type = "beats"
+model_type = args.model_type
 model = BeatTracker()
 loss_function = nn.BCELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
