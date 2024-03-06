@@ -1,9 +1,15 @@
 import argparse
 from pathlib import Path
 
+# DEBUGGING
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+
+# DEBUGGGING
+from torchaudio.transforms import MelSpectrogram
 from tqdm import tqdm
 
 from dataset import Ballroom
@@ -41,6 +47,19 @@ dataset = Ballroom(
 )
 train_loader, val_loader, test_loader = dataset.get_dataloaders(batch_size=8)
 
+# # DEBUGGING
+# melspec = melspec = MelSpectrogram(
+#     sample_rate=44100,
+#     n_fft=2048,
+#     win_length=2048,
+#     hop_length=441,
+#     center=True,
+#     pad_mode="reflect",
+#     power=2.0,
+#     norm="slaney",
+#     n_mels=81,
+# ).to(device)
+
 # Train
 for epoch in range(200):
     model.train()
@@ -52,7 +71,29 @@ for epoch in range(200):
             labels = beat_vector
         elif model_type == "downbeats":
             labels = downbeat_vector
+        # # DEBUGGING
+        # for i in range(inputs.shape[0]):
+        #     mel = (
+        #         torch.log(melspec(inputs[i].to(device)) + 1e-8)
+        #         .squeeze()
+        #         .detach()
+        #         .cpu()
+        #         .numpy()
+        #     )
+        #     plt.imshow(mel)
+        #     plt.show()
+        #     plt.savefig(f"mel_{i}.png")
         inputs, labels = inputs.to(device), labels.to(device)
+
+        # # DEBUGGING
+        # for i, audio in enumerate(inputs):
+        #     mel = melspec(audio).squeeze().detach().cpu().numpy()
+        #     # imshow mel, and overlay plot of labels
+        #     plt.imshow(mel)
+        #     plt.plot(labels[i].detach().cpu().numpy())
+        #     plt.show()
+        #     plt.savefig(f"mel_{i}.png")
+
         optimizer.zero_grad()
         outputs = model(inputs)
         loss = loss_function(outputs, labels)
@@ -83,7 +124,8 @@ for epoch in range(200):
             val_loss += loss.item()
 
     print(
-        f"Epoch {epoch+1}, Training Loss: {running_loss/len(train_loader):.4f}, Validation Loss: {val_loss/len(val_loader):.4f}"
+        f"Epoch {epoch+1}, Training Loss: {running_loss/len(train_loader):.4f},",
+        f"Validation Loss: {val_loss/len(val_loader):.4f}",
     )
 
     scheduler.step(val_loss)

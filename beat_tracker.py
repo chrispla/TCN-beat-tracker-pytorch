@@ -27,7 +27,7 @@ def beatTracker(inputFile):
     beat_times = output_to_beat_times(
         output.squeeze().detach().cpu().numpy(),
         sr=44100,
-        hop=0.01 * 44100,
+        hop=441,
         model_type="beats",
     )
 
@@ -39,7 +39,7 @@ def beatTracker(inputFile):
     downbeat_times = output_to_beat_times(
         output.squeeze().detach().cpu().numpy(),
         sr=44100,
-        hop=0.01 * 44100,
+        hop=441,
         model_type="downbeats",
     )
 

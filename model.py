@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
@@ -66,7 +67,7 @@ class BeatTracker(nn.Module):
             sample_rate=44100,
             n_fft=2048,
             win_length=2048,
-            hop_length=int(np.floor(0.01 * 44100)),
+            hop_length=int(np.floor(441)),
             center=True,
             pad_mode="reflect",
             power=2.0,
@@ -108,7 +109,7 @@ class BeatTracker(nn.Module):
         # add batch if not present
         if len(x.shape) != 3:
             x = x.unsqueeze(0)
-        y = self.melspec(x)
+        y = torch.log(self.melspec(x) + 1e-8)
         y = y.permute(0, 1, 3, 2)  # permute to (batch, channels, time, freq)
         y = self.dropout(self.pool1(F.elu(self.conv1(y))))
         y = self.dropout(self.pool2(F.elu(self.conv2(y))))

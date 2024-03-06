@@ -53,13 +53,13 @@ with torch.no_grad():
         output_times = output_to_beat_times(
             outputs.squeeze().cpu().numpy(),
             sr=44100,
-            hop=0.01 * 44100,
+            hop=441,
             model_type=model_type,
         )
         if model_type == "beats":
-            target_times = vector_to_times(beat_vector, sr=44100, hop=0.01 * 44100)
+            target_times = vector_to_times(beat_vector, sr=44100, hop=441)
         elif model_type == "downbeats":
-            target_times = vector_to_times(downbeat_vector, sr=44100, hop=0.01 * 44100)
+            target_times = vector_to_times(downbeat_vector, sr=44100, hop=441)
 
         # compute metrics
         metrics["f1"].append(mir_eval.beat.f_measure(target_times, output_times))
