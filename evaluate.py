@@ -49,7 +49,9 @@ with torch.no_grad():
     for i, data in enumerate(test_loader):
         inputs, beat_vector, downbeat_vector = data
         outputs = model(inputs.to(device))
-        output_times = output_to_beat_times(outputs, sr=44100, hop=0.01 * 44100)
+        output_times = output_to_beat_times(
+            outputs.squeeze().cpu().numpy(), sr=44100, hop=0.01 * 44100, model_type=model_type
+        )
         if model_type == "beats":
             target_times = vector_to_times(beat_vector, sr=44100, hop=0.01 * 44100)
         elif model_type == "downbeats":
