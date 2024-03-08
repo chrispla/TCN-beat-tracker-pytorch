@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import librosa
 import numpy as np
 import torch
 import torchaudio
@@ -14,7 +15,7 @@ class Ballroom(Dataset):
 
         # audio params from paper
         self.sr = 44100
-        self.hop = int(np.floor(0.01 * self.sr))
+        self.hop = 441
 
         self.audio_dir = audio_dir
 
@@ -51,17 +52,21 @@ class Ballroom(Dataset):
         self.beat_wave_frames = {}
         self.downbeat_wave_frames = {}
         for k, v in self.beat_times.items():
-            self.beat_wave_frames[k] = [int(i * self.sr) for i in v]
+            self.beat_wave_frames[k] = librosa.time_to_samples(v, sr=self.sr)
         for k, v in self.downbeat_times.items():
-            self.downbeat_wave_frames[k] = [int(i * self.sr) for i in v]
+            self.downbeat_wave_frames[k] = librosa.time_to_samples(v, sr=self.sr)
 
         # compute beat and downbeat frames based on the sr and hop for the spectrogram
         self.beat_spec_frames = {}
         self.downbeat_spec_frames = {}
         for k, v in self.beat_times.items():
-            self.beat_spec_frames[k] = [int(i * self.sr / self.hop) for i in v]
+            self.beat_spec_frames[k] = librosa.time_to_frames(
+                v, sr=self.sr, hop_length=self.hop, n_fft=2048
+            )
         for k, v in self.downbeat_times.items():
-            self.downbeat_spec_frames[k] = [int(i * self.sr / self.hop) for i in v]
+            self.downbeat_spec_frames[k] = librosa.time_to_frames(
+                v, sr=self.sr, hop_length=self.hop, n_fft=2048
+            )
 
         # get beat vectors aligned with spectrogram frames
         # for training, they use 0.5 in a radius of 2 around frame, and 1 for the frame
@@ -90,6 +95,29 @@ class Ballroom(Dataset):
                 downbeat_vector[indices] = values
             self.downbeat_vectors[k] = downbeat_vector
 
+        # get beat vectors aligned with waveform frames
+        # for training, they use 0.5 in a radius of 2 around frame, and 1 for the frame
+        self.beat_vectors_wave = {}
+        self.downbeat_vectors_wave = {}
+        for k, v in self.beat_wave_frames.items():
+            beat_vector = np.zeros(v[-1] + 1)
+            for frame in v:
+                indices = np.arange(
+                    max(0, frame - 2), min(beat_vector.shape[0], frame + 3)
+                )
+                values = np.where(indices == frame, 1.0, 0.5)
+                beat_vector[indices] = values
+            self.beat_vectors_wave[k] = beat_vector
+        for k, v in self.downbeat_wave_frames.items():
+            downbeat_vector = np.zeros(v[-1] + 1)
+            for frame in v:
+                indices = np.arange(
+                    max(0, frame - 2), min(downbeat_vector.shape[0], frame + 3)
+                )
+                values = np.where(indices == frame, 1.0, 0.5)
+                downbeat_vector[indices] = values
+            self.downbeat_vectors_wave[k] = downbeat_vector
+
     def __len__(self):
         return len(self.audio_files)
 
@@ -113,11 +141,11 @@ class Ballroom(Dataset):
         beat_vector = torch.tensor(self.beat_vectors[basename]).float()
         downbeat_vector = torch.tensor(self.downbeat_vectors[basename]).float()
 
-        return audio, beat_vector, downbeat_vector
+        return (audio, beat_vector, downbeat_vector)
 
     def get_dataloaders(self, batch_size=1, num_workers=4):
         total_size = len(self)
-        train_size = int(total_size * 0.8)
+        train_size = int(total_size * 0.1)
         val_size = int(total_size * 0.1)
         test_size = total_size - train_size - val_size
 

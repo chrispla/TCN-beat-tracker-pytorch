@@ -171,3 +171,6 @@ test.ipynb
 
 # vscode stuff
 .vscode/
+
+# wandb
+wandb/
